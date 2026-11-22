@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Store Zoning Planner</title>
+<meta name="description" content="Who works in which zone of the store, and when.">
+<meta name="theme-color" content="#2343C9">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Zoning">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* layout: header + date bar, then one working surface per view; every timeline runs left→right across opening hours */
+  --bg:#EEF0F4; --surface:#FFFFFF; --ink:#171B26; --muted:#5E6677; --line:#D9DDE5; --accent:#2343C9; --accent-ink:#FFFFFF;
+  --ok:#16884C; --okbg:#E3F3EA; --bad:#C9302C; --badbg:#FCE9E8; --soft:#F5F6F9;
+  --display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+  --body:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#10131A; --surface:#191D27; --ink:#E8EBF2; --muted:#9AA2B3; --line:#2A303D; --accent:#86A0FF; --accent-ink:#0C1020;
+    --ok:#4CC38A; --okbg:#173326; --bad:#FF7A75; --badbg:#3A1E20; --soft:#1F2430; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#10131A; --surface:#191D27; --ink:#E8EBF2; --muted:#9AA2B3; --line:#2A303D; --accent:#86A0FF; --accent-ink:#0C1020;
+  --ok:#4CC38A; --okbg:#173326; --bad:#FF7A75; --badbg:#3A1E20; --soft:#1F2430; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:var(--bg);color:var(--ink);font:15px/1.45 var(--body);-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:6px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0}
+.wrap{max-width:1280px;margin:0 auto;padding:0 max(16px,env(safe-area-inset-right)) calc(48px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+
+/* header */
+header.top{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;padding:max(14px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) 14px max(16px,env(safe-area-inset-left));max-width:1280px;margin:0 auto}
+.btn.mgr.on{border-color:var(--accent);color:var(--accent)}
+.tip{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:10px 14px;margin-bottom:12px;border-radius:12px;background:var(--soft);border:1px solid var(--line);font-size:14px}
+.err{color:var(--bad);font-size:14px;min-height:20px;margin:6px 0 0}
+.brand{display:flex;flex-direction:column;line-height:1.1;margin-right:auto}
+.brand small{font:600 11px/1 var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.brand h1{font-size:24px;font-weight:800}
+nav.tabs{display:flex;gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:4px}
+nav.tabs a{padding:8px 14px;border-radius:9px;text-decoration:none;color:var(--muted);font-weight:600}
+nav.tabs a[aria-current="page"]{background:var(--accent);color:var(--accent-ink)}
+.status{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.status::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.status.ok::before{background:var(--ok)} .status.busy::before{background:#E0A400} .status.err::before{background:var(--bad)}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:8px 12px;font-weight:600}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.danger{color:var(--bad)}
+.btn.small{padding:5px 10px;font-size:13px}
+.icon{width:36px;padding:8px 0;text-align:center}
+
+/* date bar */
+.datebar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin:6px 0 14px}
+.datebar h2{font-size:22px;font-weight:600;min-width:220px}
+.week{display:flex;gap:4px;margin-left:auto;flex-wrap:wrap}
+.week button{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:5px 9px;min-width:50px;display:flex;flex-direction:column;align-items:center;line-height:1.15}
+.week button small{font-size:11px;color:var(--muted);text-transform:capitalize}
+.week button b{font-variant-numeric:tabular-nums}
+.week button i{font-style:normal;font-size:10px;color:var(--muted)}
+.week button.sel{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.week button.today b{color:var(--accent)}
+
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px}
+.banner{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding:10px 14px;margin-bottom:12px;border-radius:12px;background:var(--soft);border:1px dashed var(--muted)}
+.banner p{margin:0;flex:1;min-width:240px}
+
+/* palette */
+.palette{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 12px;margin-bottom:10px}
+.palette .lbl{font-weight:600;color:var(--muted);font-size:13px;margin-right:2px}
+.palette .sp{flex:1}
+.chip{display:inline-flex;align-items:center;gap:7px;border:2px solid transparent;background:var(--soft);border-radius:999px;padding:6px 12px 6px 8px;font-weight:600;font-size:14px}
+.chip i{width:16px;height:16px;border-radius:50%;background:var(--c)}
+.chip.on{background:var(--c);color:var(--ct);border-color:var(--ink)}
+.chip.on i{box-shadow:0 0 0 2px var(--ct)}
+.chip.erase i{background:repeating-linear-gradient(45deg,var(--muted) 0 3px,transparent 3px 6px);border:1px solid var(--muted)}
+.chip.erase.on{background:var(--ink);color:var(--surface)}
+.hint{font-size:13px;color:var(--muted);margin:0 0 10px}
+
+.check{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;padding:8px 12px;border-radius:10px;margin-bottom:10px;font-size:14px}
+.check.ok{background:var(--okbg);color:var(--ok)}
+.check.bad{background:var(--badbg);color:var(--bad)}
+.check b{font-weight:600}
+.check span{font-family:var(--mono);font-size:12.5px;background:var(--surface);color:var(--ink);border-radius:6px;padding:2px 7px}
+
+/* plan grid */
+.gridwrap{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+.grid{display:grid;grid-template-columns:150px minmax(calc(var(--n) * 30px),1fr)}
+.cell{border-bottom:1px solid var(--line);min-height:46px}
+.cell.name{position:sticky;left:0;z-index:3;background:var(--surface);border-right:1px solid var(--line);padding:6px 10px;display:flex;flex-direction:column;justify-content:center;line-height:1.2}
+.cell.name span{font-weight:600;overflow-wrap:anywhere}
+.cell.name small{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+.cell.head{min-height:30px;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.cell.sub{background:var(--soft)}
+.axis{position:relative;min-height:30px}
+.axis.thin{background:var(--soft)}
+.axis em{position:absolute;top:8px;font:500 11px/1 var(--mono);color:var(--muted);font-style:normal;transform:translateX(-50%);white-space:nowrap}
+.axis em.first{transform:none;padding-left:4px} .axis em.last{transform:translateX(-100%);padding-right:4px}
+.track{position:relative;touch-action:pan-y;user-select:none;-webkit-user-select:none;cursor:crosshair;
+  background-image:linear-gradient(to right,var(--line) 1px,transparent 1px),linear-gradient(to right,color-mix(in srgb,var(--line) 45%,transparent) 1px,transparent 1px);
+  background-size:calc(100% / var(--n) * var(--hs)) 100%,calc(100% / var(--n)) 100%}
+.blk{position:absolute;top:5px;bottom:5px;background:var(--c);color:var(--ct);border-radius:8px;padding:3px 8px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;display:flex;flex-direction:column;justify-content:center;line-height:1.15;cursor:pointer;box-shadow:0 1px 0 rgba(0,0,0,.12)}
+.blk b{font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis}
+.blk span{font:500 10.5px/1.2 var(--mono);opacity:.9}
+.blk:hover{filter:brightness(1.06)}
+.ghost{position:absolute;top:3px;bottom:3px;border-radius:8px;pointer-events:none;z-index:2;background:color-mix(in srgb,var(--c) 55%,transparent);border:2px solid var(--c)}
+.ghost.erase{background:repeating-linear-gradient(45deg,color-mix(in srgb,var(--bad) 30%,transparent) 0 6px,transparent 6px 12px);border-color:var(--bad)}
+.cell.cov{flex-direction:row;align-items:center;gap:7px;min-height:30px}
+.cell.cov i{width:10px;height:10px;border-radius:3px;flex:none}
+.cell.cov span{font-weight:500;font-size:13px}
+.cell.cov small{margin-left:auto;white-space:nowrap}
+.covtrack{display:grid;grid-template-columns:repeat(var(--n),1fr);min-height:30px}
+.covtrack span{display:flex;align-items:center;justify-content:center;font:500 11px/1 var(--mono);border-right:1px solid color-mix(in srgb,var(--line) 50%,transparent);background:color-mix(in srgb,var(--c) calc(var(--a) * 100%),transparent)}
+.covtrack span.gap{background:var(--badbg);color:var(--bad);box-shadow:inset 0 -3px 0 var(--bad)}
+.covtrack span.gap::after{content:"!";font-weight:700}
+.dayacts{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.empty{padding:28px;text-align:center;color:var(--muted)}
+
+/* board */
+.boardbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:10px 14px;margin-bottom:12px}
+.boardbar .clock{font:800 30px/1 var(--display);font-variant-numeric:tabular-nums;min-width:96px}
+.boardbar input[type=range]{flex:1;min-width:180px;accent-color:var(--accent)}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-bottom:16px}
+.zcard{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
+.zcard header{background:var(--c);color:var(--ct);padding:10px 12px;display:flex;align-items:center;gap:8px}
+.zcard header h3{font-size:17px;font-weight:600;flex:1}
+.pill{font:600 12px/1 var(--body);padding:5px 8px;border-radius:999px;background:var(--surface);color:var(--ink);white-space:nowrap}
+.pill.ok{color:var(--ok)} .pill.bad{background:var(--bad);color:#fff}
+.zcard ul{list-style:none;margin:0;padding:8px 12px;display:flex;flex-direction:column;gap:6px;flex:1}
+.zcard li{display:flex;justify-content:space-between;gap:8px;font-weight:600;font-size:16px}
+.zcard li small{font:500 12px/1.6 var(--mono);color:var(--muted)}
+.zcard li.none{color:var(--muted);font-weight:400;font-size:14px}
+.zcard .next{border-top:1px solid var(--line);padding:8px 12px;font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:2px}
+.zcard .next b{font:500 12px var(--mono);color:var(--ink)}
+.zcard.short{border-color:var(--bad);box-shadow:0 0 0 1px var(--bad)}
+.tl{overflow-x:auto}
+.tl .grid{grid-template-columns:170px minmax(calc(var(--n) * 26px),1fr)}
+.tl .track{cursor:default}
+.tl .blk{top:auto;bottom:auto;height:26px;cursor:default;flex-direction:row;align-items:center;justify-content:flex-start;gap:6px;padding:0 8px}
+.tl .blk b,.tl .blk span{white-space:nowrap}
+.marker{position:absolute;top:0;bottom:0;width:2px;background:var(--ink);z-index:2;pointer-events:none}
+.marker::before{content:"";position:absolute;top:-1px;left:-4px;border:5px solid transparent;border-top-color:var(--ink)}
+.sectionh{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:4px 0 10px}
+.sectionh h3{font-size:18px}
+
+/* me */
+.picker{padding:22px}
+.picker h2{font-size:26px;margin-bottom:4px}
+.picker p{color:var(--muted);margin:0 0 16px}
+.names{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.names button{padding:16px;border-radius:14px;border:1px solid var(--line);background:var(--soft);font-weight:600;font-size:18px;text-align:left}
+.names button:hover{border-color:var(--accent)}
+.hello{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:6px 0 12px}
+.hello h2{font-size:28px;font-weight:800}
+.nowcard{border-radius:18px;padding:20px 22px;margin-bottom:18px;background:var(--c,var(--surface));color:var(--ct,var(--ink));border:1px solid var(--line);display:flex;flex-direction:column;gap:4px}
+.nowcard small{font-weight:600;font-size:13px;text-transform:uppercase;letter-spacing:.1em;opacity:.85}
+.nowcard strong{font:800 clamp(30px,6vw,46px)/1.05 var(--display)}
+.nowcard span{font:500 16px var(--mono)}
+.nowcard p{margin:6px 0 0;font-size:15px;opacity:.92}
+.weeknav{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.weeknav h3{font-size:19px;margin-right:auto}
+.days{display:flex;flex-direction:column;gap:8px}
+.day{display:grid;grid-template-columns:76px 1fr;gap:12px;padding:12px 14px;align-items:start}
+.day.today{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.day .dn{display:flex;flex-direction:column;line-height:1.1}
+.day .dn small{color:var(--muted);text-transform:capitalize;font-size:13px}
+.day .dn b{font:800 24px/1 var(--display);font-variant-numeric:tabular-nums}
+.bar{position:relative;height:10px;border-radius:5px;background:var(--soft);margin:4px 0 10px;overflow:hidden}
+.bar i{position:absolute;top:0;bottom:0;background:var(--c)}
+.slots{display:flex;flex-wrap:wrap;gap:6px}
+.slot{display:inline-flex;align-items:center;gap:8px;border-radius:9px;padding:6px 10px;background:color-mix(in srgb,var(--c) 16%,var(--surface));border-left:5px solid var(--c);font-weight:600}
+.slot em{font:500 13px var(--mono);font-style:normal;color:var(--muted)}
+.off{color:var(--muted)}
+
+/* modal */
+.scrim{position:fixed;inset:0;background:rgba(10,12,18,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50}
+.modal{background:var(--surface);border:1px solid var(--line);border-radius:16px;max-width:560px;width:100%;max-height:calc(100% - 32px);overflow:auto;padding:18px 18px 16px;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+.modal h3{font-size:20px;margin-bottom:12px}
+.modal h4{margin:16px 0 8px;font:600 12px/1 var(--body);text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.modal .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.modal .acts{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;flex-wrap:wrap}
+.modal .acts .sp{flex:1}
+.field{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);font-weight:600}
+.field input,.field select,.lst input,.lst select{border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:7px 9px;color:var(--ink);font-weight:400;font-size:15px}
+.lst{display:flex;flex-direction:column;gap:6px}
+.lst .it{display:flex;gap:8px;align-items:center}
+.lst .it input[type=text]{flex:1;min-width:0}
+.lst .it input[type=number]{width:62px}
+.sw{width:34px;height:34px;border-radius:9px;border:2px solid var(--surface);box-shadow:0 0 0 1px var(--line);background:var(--c);flex:none}
+.modal textarea{width:100%;min-height:200px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--ink);font:13px/1.5 var(--mono);padding:10px}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--ink);color:var(--surface);padding:10px 16px;border-radius:10px;font-weight:600;z-index:60}
+.loading{padding:60px 20px;text-align:center;color:var(--muted)}
+@media (max-width:640px){
+  .brand h1{font-size:20px}
+  .datebar h2{font-size:19px;min-width:0;width:100%;order:-1}
+  .week{margin-left:0}
+  .grid{grid-template-columns:104px minmax(calc(var(--n) * 30px),1fr)}
+  .tl .grid{grid-template-columns:110px minmax(calc(var(--n) * 26px),1fr)}
+  .day{grid-template-columns:56px 1fr}
+}
+@media (prefers-reduced-motion: no-preference){
+  .blk,.chip,.btn{transition:filter .12s,background-color .12s,border-color .12s}
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand"><small id="kicker">Zoning</small><h1 id="storeTitle">Store</h1></div>
+  <nav class="tabs" id="tabs" aria-label="Views"></nav>
+  <div class="status" id="status" role="status"></div>
+  <button class="btn small mgr" id="mgrBtn" type="button" data-act="mgr">Manager</button>
+  <button class="btn small" id="langBtn" type="button">ES</button>
+</header>
+<main class="wrap" id="app"><div class="loading">…</div></main>
+<div id="modalRoot"></div>
+
+<script>
+"use strict";
+/* ---------- i18n ---------- */
+const STR={
+en:{kicker:"Zoning",tabPlan:"Plan",tabBoard:"Floor board",tabMe:"My shifts",today:"Today",prevDay:"Previous day",nextDay:"Next day",
+stLocal:"Saved in this browser only",stShared:"Shared · up to date",stSaving:"Saving…",stView:"View only",stLoading:"Connecting…",stOffline:"Can't reach the shared plan right now",stError:"Couldn't save. Check your connection and try again.",
+exampleBanner:"This is example data so you can try it out. Paint or edit anything and it becomes your own plan.",startBlank:"Start blank",
+paintWith:"Paint with",eraser:"Eraser",editSetup:"Zones & team",hint:"Pick a zone, then drag across a person's row to assign it. Click a block to change or remove it.",
+allCovered:"Every zone has its minimum staff all day",gaps1:"1 coverage gap",gapsN:"{n} coverage gaps",team:"Team",coverage:"Coverage per zone",min:"min {n}",hours:"{h} h",
+copyPrev:"Copy previous day",copyLastWeek:"Same as last week",repeatWeek:"Repeat for rest of week",clearDay:"Clear day",
+confirmReplace:"Replace the plan for {day}?",confirmRest:"Replace the plan for the rest of this week ({from} to {to})?",confirmClear:"Remove every assignment on {day}?",
+cancel:"Cancel",replace:"Replace",clear:"Clear",zone:"Zone",from:"From",to:"To",removeBlock:"Remove block",done:"Done",
+store:"Store",storeName:"Store name",opens:"Opens",closes:"Closes",zones:"Zones",minStaff:"Min. staff",addZone:"Add zone",people:"People",addPerson:"Add person",newZone:"New zone",newPerson:"New person",colorBtn:"Change colour",remove:"Remove",
+showing:"Showing",now:"Now",nobody:"Nobody here",until:"until {t}",arrives:"{name} arrives",leaves:"{name} leaves",byZone:"Day by zone",copyDay:"Copy day for WhatsApp",copyWeek:"Copy my week",copied:"Copied",copyFail:"Copy this text:",
+whoAreYou:"Who are you?",pickName:"Tap your name to see which zone you're in and when.",notYou:"Not you?",hi:"Hi, {name}",
+nowLabel:"Right now",untilT:"until {t}",nextUp:"Next: {zone} at {t}",onBreak:"On a break",notToday:"You're not on the plan today",dayDone:"Your day is finished",startsAt:"You start at {t}",inZone:"in {zone}",
+yourWeek:"Week of {d}",dayOff:"Day off",prevWeek:"Previous week",nextWeek:"Next week",thisWeek:"This week",noStaff:"Add your team in Zones & team to start planning.",
+loadingWeek:"Loading this week…",offline:"Can't reach the shared plan yet. It appears as soon as the connection comes back.",readOnlySave:"You can view this plan but not change it.",
+weekOf:"week of {d}",working:"{n} on",closedDay:"Nobody planned",waitLoad:"This week is still loading, try again in a moment.",
+manager:"Manager",managerOn:"Manager ✓",pinTitle:"Manager access",pinHelp:"Enter the manager PIN to plan and edit. Everyone else can view without it.",pinLabel:"PIN",pinWrong:"That PIN isn't right. Check it and try again.",pinNet:"No connection. Try again when you're online.",unlock:"Unlock",exitManager:"Exit manager mode",managerMode:"Manager mode is on on this device.",pinExpired:"The manager PIN changed. Enter the new one to keep editing.",
+exampleViewer:"Example data: the manager hasn't set up the real plan yet.",stSynced:"Synced",stOfflineCache:"Offline · showing the last saved plan",
+iosTip:"Install it: tap Share, then “Add to Home Screen”.",installApp:"Install app",dismiss:"OK"},
+es:{kicker:"Zonificación",tabPlan:"Planificar",tabBoard:"Tablero",tabMe:"Mis turnos",today:"Hoy",prevDay:"Día anterior",nextDay:"Día siguiente",
+stLocal:"Guardado solo en este navegador",stShared:"Compartido · al día",stSaving:"Guardando…",stView:"Solo lectura",stLoading:"Conectando…",stOffline:"No se puede acceder al plan compartido ahora",stError:"No se pudo guardar. Revisa la conexión y vuelve a intentarlo.",
+exampleBanner:"Son datos de ejemplo para que lo pruebes. Pinta o edita lo que quieras y pasará a ser tu propio plan.",startBlank:"Empezar en blanco",
+paintWith:"Pintar con",eraser:"Borrador",editSetup:"Zonas y equipo",hint:"Elige una zona y arrastra sobre la fila de una persona para asignarla. Pulsa un bloque para cambiarlo o quitarlo.",
+allCovered:"Todas las zonas tienen su mínimo de personal todo el día",gaps1:"1 hueco de cobertura",gapsN:"{n} huecos de cobertura",team:"Equipo",coverage:"Cobertura por zona",min:"mín. {n}",hours:"{h} h",
+copyPrev:"Copiar día anterior",copyLastWeek:"Igual que la semana pasada",repeatWeek:"Repetir el resto de la semana",clearDay:"Vaciar día",
+confirmReplace:"¿Sustituir el plan del {day}?",confirmRest:"¿Sustituir el plan del resto de la semana ({from} a {to})?",confirmClear:"¿Quitar todas las asignaciones del {day}?",
+cancel:"Cancelar",replace:"Sustituir",clear:"Vaciar",zone:"Zona",from:"Desde",to:"Hasta",removeBlock:"Quitar bloque",done:"Hecho",
+store:"Tienda",storeName:"Nombre de la tienda",opens:"Abre",closes:"Cierra",zones:"Zonas",minStaff:"Mín. personal",addZone:"Añadir zona",people:"Personas",addPerson:"Añadir persona",newZone:"Nueva zona",newPerson:"Nueva persona",colorBtn:"Cambiar color",remove:"Quitar",
+showing:"Viendo",now:"Ahora",nobody:"No hay nadie",until:"hasta {t}",arrives:"llega {name}",leaves:"se va {name}",byZone:"Día por zona",copyDay:"Copiar día para WhatsApp",copyWeek:"Copiar mi semana",copied:"Copiado",copyFail:"Copia este texto:",
+whoAreYou:"¿Quién eres?",pickName:"Pulsa tu nombre para ver en qué zona estás y cuándo.",notYou:"¿No eres tú?",hi:"Hola, {name}",
+nowLabel:"Ahora mismo",untilT:"hasta las {t}",nextUp:"Después: {zone} a las {t}",onBreak:"En descanso",notToday:"Hoy no estás en el plan",dayDone:"Tu jornada ha terminado",startsAt:"Empiezas a las {t}",inZone:"en {zone}",
+yourWeek:"Semana del {d}",dayOff:"Libre",prevWeek:"Semana anterior",nextWeek:"Semana siguiente",thisWeek:"Esta semana",noStaff:"Añade tu equipo en Zonas y equipo para empezar a planificar.",
+loadingWeek:"Cargando esta semana…",offline:"Aún no se puede acceder al plan compartido. Aparecerá en cuanto vuelva la conexión.",readOnlySave:"Puedes ver este plan pero no cambiarlo.",
+weekOf:"semana del {d}",working:"{n} trab.",closedDay:"Nadie planificado",waitLoad:"Esta semana aún se está cargando, inténtalo en un momento.",
+manager:"Encargado",managerOn:"Encargado ✓",pinTitle:"Acceso de encargado",pinHelp:"Introduce el PIN de encargado para planificar y editar. El resto puede consultar sin él.",pinLabel:"PIN",pinWrong:"Ese PIN no es correcto. Revísalo y vuelve a intentarlo.",pinNet:"Sin conexión. Inténtalo cuando tengas internet.",unlock:"Entrar",exitManager:"Salir del modo encargado",managerMode:"El modo encargado está activo en este dispositivo.",pinExpired:"El PIN de encargado ha cambiado. Introduce el nuevo para seguir editando.",
+exampleViewer:"Datos de ejemplo: el encargado aún no ha montado el plan real.",stSynced:"Sincronizado",stOfflineCache:"Sin conexión · mostrando el último plan guardado",
+iosTip:"Instálala: pulsa Compartir y luego “Añadir a pantalla de inicio”.",installApp:"Instalar app",dismiss:"Vale"}
+};
+const LS={get(k){try{const v=localStorage.getItem(k);return v==null?null:JSON.parse(v)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+let lang=LS.get("zoning.lang")==="es"?"es":"en";
+function t(k,v){let s=(STR[lang]&&STR[lang][k])||STR.en[k]||k;if(v)for(const x in v)s=s.split("{"+x+"}").join(v[x]);return s}
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const locale=()=>lang==="es"?"es-ES":"en-GB";
+
+/* ---------- dates & time ---------- */
+const pad=n=>String(n).padStart(2,"0");
+function iso(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())}
+function parseISO(s){const p=s.split("-").map(Number);return new Date(p[0],p[1]-1,p[2])}
+function addDays(s,n){const d=parseISO(s);d.setDate(d.getDate()+n);return iso(d)}
+function mondayOf(s){const d=parseISO(s);d.setDate(d.getDate()-((d.getDay()+6)%7));return iso(d)}
+const todayISO=()=>iso(new Date());
+function nowMin(){const d=new Date();return d.getHours()*60+d.getMinutes()}
+const fmt=m=>pad(Math.floor(m/60))+":"+pad(m%60);
+function dfmt(s,o){return new Intl.DateTimeFormat(locale(),o).format(parseISO(s))}
+const longDate=s=>dfmt(s,{weekday:"long",day:"numeric",month:"long"});
+const shortDate=s=>dfmt(s,{weekday:"short",day:"numeric"});
+const fmtH=h=>(Math.round(h*10)/10).toLocaleString(locale());
+const uid=()=>"b"+Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-3);
+const clone=o=>JSON.parse(JSON.stringify(o));
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+/* ---------- colours ---------- */
+const PALETTE=["#E4572E","#F3A712","#29A36A","#2E86DE","#8E44AD","#E84393","#17A2B8","#6C5CE7","#A0522D","#95A5A6","#00B894","#FDCB6E"];
+function txtOn(hex){const n=parseInt(hex.slice(1),16);const L=0.299*(n>>16&255)+0.587*(n>>8&255)+0.114*(n&255);return L>150?"#171B26":"#FFFFFF"}
+const okColor=c=>typeof c==="string"&&/^#[0-9a-fA-F]{6}$/.test(c);
+
+/* ---------- example data (shown until someone edits) ---------- */
+function exampleConfig(){
+  const es=lang==="es";const z=(id,en,e2,color,min)=>({id,name:es?e2:en,color,min});
+  return {storeName:es?"Tienda Centro":"Main Street Store",open:600,close:1320,step:30,
+    zones:[z("z1","Checkout","Cajas","#E4572E",1),z("z2","Fitting rooms","Probadores","#8E44AD",1),z("z3","Women's floor","Planta mujer","#E84393",0),
+      z("z4","Men's floor","Planta hombre","#2E86DE",0),z("z5","Stockroom & restock","Almacén y reposición","#A0522D",0),z("z6","Entrance & welcome","Entrada y bienvenida","#29A36A",0)],
+    staff:["Lucía","Marcos","Ana","Javi","Sara","Pablo","Elena"].map((n,i)=>({id:"s"+(i+1),name:n}))};
+}
+const POS=[
+  [[600,780,"z1"],[810,960,"z3"]],
+  [[600,840,"z2"],[870,960,"z1"]],
+  [[600,690,"z5"],[690,840,"z4"],[840,900,"z2"],[930,960,"z6"]],
+  [[960,1110,"z1"],[1140,1320,"z1"]],
+  [[960,1080,"z3"],[1080,1200,"z2"],[1230,1320,"z2"]],
+  [[780,870,"z1"],[900,1080,"z2"],[1080,1200,"z4"],[1200,1230,"z2"],[1230,1260,"z4"]]];
+const exWeeks={};
+function exWeek(m){
+  if(exWeeks[m])return exWeeks[m];
+  const days={};const ids=["s1","s2","s3","s4","s5","s6","s7"];
+  for(let i=0;i<7;i++){const d=addDays(m,i);const off=i%7;const work=ids.filter((_,k)=>k!==off);const list=[];
+    POS.forEach((p,k)=>{const s=work[(k+i)%6];p.forEach(x=>list.push({id:uid(),s,z:x[2],a:x[0],b:x[1]}))});days[d]=list}
+  return exWeeks[m]={days};
+}
+
+/* ---------- state ---------- */
+let cfg=null,isExample=true,mode="init",canWrite=false,loaded=false,offline=false,saveErr=false,installEvt=null;
+const weeks={};          // monday -> {days:{date:[blocks]}} | null (empty)
+const weekSubs={};
+let selDate=todayISO(),tool=null,boardTime=null,boardDate=null,drag=null,needsRender=false,modal=null;
+let meId=LS.get("zoning.me");
+const VIEWS=["plan","board","me"];
+let view=VIEWS.includes(location.hash.slice(1))?location.hash.slice(1):null;
+
+function sanCfg(c){
+  if(!c||typeof c!=="object")return exampleConfig();
+  const step=30;let open=Number(c.open),close=Number(c.close);
+  if(!(open>=0&&open<1440))open=600;if(!(close>open&&close<=1440))close=Math.min(1440,open+600);
+  open=Math.round(open/step)*step;close=Math.round(close/step)*step;if(close<=open)close=open+step;
+  const zones=(Array.isArray(c.zones)?c.zones:[]).slice(0,30).filter(z=>z&&typeof z.id==="string").map(z=>({id:z.id.slice(0,40),name:String(z.name||"").slice(0,40),color:okColor(z.color)?z.color:"#95A5A6",min:clamp(parseInt(z.min)||0,0,9)}));
+  const staff=(Array.isArray(c.staff)?c.staff:[]).slice(0,120).filter(s=>s&&typeof s.id==="string").map(s=>({id:s.id.slice(0,40),name:String(s.name||"").slice(0,40)}));
+  return {storeName:String(c.storeName||"").slice(0,60),open,close,step,zones,staff};
+}
+function sanWeek(w){
+  const days={};if(w&&w.days&&typeof w.days==="object")for(const d in w.days){if(!/^\d{4}-\d{2}-\d{2}$/.test(d)||!Array.isArray(w.days[d]))continue;
+    days[d]=w.days[d].filter(b=>b&&typeof b.s==="string"&&typeof b.z==="string"&&Number.isFinite(b.a)&&Number.isFinite(b.b)&&b.b>b.a).slice(0,400).map(b=>({id:String(b.id||uid()).slice(0,40),s:b.s,z:b.z,a:b.a,b:b.b}))}
+  return {days};
+}
+const zoneById=id=>cfg.zones.find(z=>z.id===id);
+const staffById=id=>cfg.staff.find(s=>s.id===id);
+const slots=()=>(cfg.close-cfg.open)/cfg.step;
+const pct=m=>(clamp(m,cfg.open,cfg.close)-cfg.open)/(cfg.close-cfg.open)*100;
+function weekReady(m){return isExample||weeks[m]!==undefined}
+function dayBlocks(d){
+  const m=mondayOf(d);const w=isExample?exWeek(m):weeks[m];
+  const list=(w&&w.days&&w.days[d])||[];
+  return list.filter(b=>zoneById(b.z)&&staffById(b.s)&&b.b>cfg.open&&b.a<cfg.close).sort((p,q)=>p.a-q.a);
+}
+
+/* ---------- persistence ---------- */
+/* remote = the hosted app (Netlify Function + Blobs); local = opened as a file, saves in this browser */
+const pend={},busy={},qt={},fetched={},inflight={},lastRaw={};
+const API="/api/plan";
+let pin=LS.get("zoning.pin")||"";
+function lsKey(path){return "zoning.local."+path.replace("/",".")}
+const cacheKey=path=>"zoning.cache."+path;
+async function apiGet(paths){
+  const r=await fetch(API+"?docs="+encodeURIComponent(paths.join(",")),{cache:"no-store"});
+  if(!r.ok)throw new Error("HTTP "+r.status);
+  return (await r.json()).docs||{};
+}
+async function apiPut(path,data){
+  const r=await fetch(API+"?doc="+encodeURIComponent(path),{method:"PUT",headers:{"content-type":"application/json","x-manager-pin":pin},body:JSON.stringify(data)});
+  if(r.status===401){const e=new Error("pin");e.code="pin";throw e}
+  if(!r.ok)throw new Error("HTTP "+r.status);
+}
+function queueSave(path,data){
+  if(!canWrite)return;pend[path]=clone(data);clearTimeout(qt[path]);qt[path]=setTimeout(()=>flush(path),400);setStatus();
+}
+async function flush(path){
+  if(busy[path]||!pend[path])return;const data=pend[path];delete pend[path];busy[path]=true;setStatus();
+  try{
+    if(mode==="remote"){
+      try{await apiPut(path,data)}catch(e){if(e.code==="pin")throw e;await new Promise(r=>setTimeout(r,800+Math.random()*800));await apiPut(path,data)}
+      LS.set(cacheKey(path),{d:data});lastRaw[path]=JSON.stringify(data);
+    }else LS.set(lsKey(path),data);
+    saveErr=false;
+  }catch(e){
+    if(e&&e.code==="pin"){pin="";LS.set("zoning.pin","");canWrite=false;toast(t("pinExpired"));render()}else{saveErr=true;pend[path]=pend[path]||data}
+  }
+  busy[path]=false;if(pend[path]&&!saveErr)flush(path);else setStatus();
+}
+const saveCfg=()=>queueSave("plan/config",cfg);
+const saveWeek=m=>queueSave("weeks/"+m,weeks[m]||{days:{}});
+function materialize(){
+  isExample=false;
+  Object.keys(exWeeks).forEach(m=>{weeks[m]=clone(exWeeks[m]);saveWeek(m)});
+  saveCfg();
+}
+/* apply fetched docs; returns true if anything visible changed */
+function applyDocs(docs){
+  let changed=false;
+  for(const path in docs){
+    if(pend[path]||busy[path])continue;
+    const data=docs[path];const raw=JSON.stringify(data);
+    LS.set(cacheKey(path),{d:data});
+    if(lastRaw[path]===raw&&!(path==="plan/config"&&!cfg))continue;
+    lastRaw[path]=raw;changed=true;
+    if(path==="plan/config"){if(data){cfg=sanCfg(data);isExample=false}else{if(!cfg||isExample){cfg=exampleConfig();isExample=true}}}
+    else{const m=path.slice(6);weeks[m]=data?sanWeek(data):null;fetched[m]=true}
+  }
+  return changed;
+}
+function loadWeek(m){
+  if(mode==="local"){if(weeks[m]===undefined){const w=LS.get(lsKey("weeks/"+m));weeks[m]=w?sanWeek(w):null}return}
+  if(mode!=="remote"||fetched[m]||inflight[m])return;
+  const path="weeks/"+m;
+  if(weeks[m]===undefined){const c=LS.get(cacheKey(path));if(c)weeks[m]=c.d?sanWeek(c.d):null}
+  inflight[m]=true;
+  apiGet([path]).then(d=>{fetched[m]=true;if(applyDocs(d))softRender();else if(weeks[m]===undefined){weeks[m]=null;softRender()}})
+    .catch(()=>{offline=true;setStatus()}).finally(()=>{inflight[m]=false});
+}
+async function ensureWeekData(m){
+  if(isExample||mode!=="remote"){loadWeek(m);return}
+  if(fetched[m])return;
+  try{const d=await apiGet(["weeks/"+m]);fetched[m]=true;applyDocs(d);if(weeks[m]===undefined)weeks[m]=null}catch(e){}
+}
+function ensureWeeks(){[mondayOf(todayISO()),mondayOf(selDate)].forEach(loadWeek)}
+async function refresh(){
+  if(mode!=="remote")return;
+  const paths=["plan/config",...new Set([mondayOf(todayISO()),mondayOf(selDate)])].map(p=>p.includes("/")?p:"weeks/"+p);
+  try{
+    const d=await apiGet(paths);
+    paths.forEach(p=>{if(!(p in d))d[p]=null});
+    const wasOffline=offline;offline=false;loaded=true;
+    paths.forEach(p=>{if(p.startsWith("weeks/"))fetched[p.slice(6)]=true});
+    if(applyDocs(d)||wasOffline||!cfg)softRender();else setStatus();
+  }catch(e){offline=true;if(!cfg)render();else setStatus()}
+}
+async function verifyPin(p){
+  const r=await fetch(API+"?check=1",{headers:{"x-manager-pin":p},cache:"no-store"});
+  if(r.status===401)return false;if(!r.ok)throw new Error("HTTP "+r.status);return true;
+}
+
+/* ---------- mutations ---------- */
+function paintList(list,staff,a,b,zone,keepId){
+  const out=[];
+  list.forEach(x=>{if(x.s!==staff||x.b<=a||x.a>=b){out.push(x);return}
+    if(x.a<a)out.push(Object.assign({},x,{b:a}));if(x.b>b)out.push(Object.assign({},x,{id:uid(),a:b}))});
+  if(zone)out.push({id:keepId||uid(),s:staff,z:zone,a,b});
+  return mergeAdj(out);
+}
+function mergeAdj(list){
+  list.sort((p,q)=>p.s<q.s?-1:p.s>q.s?1:p.a-q.a);const r=[];
+  for(const x of list){const l=r[r.length-1];if(l&&l.s===x.s&&l.z===x.z&&l.b===x.a)l.b=x.b;else r.push(Object.assign({},x))}
+  return r;
+}
+function mutateDays(dates,fn){
+  if(!canWrite)return false;
+  const m=mondayOf(dates[0]);
+  if(!isExample&&weeks[m]===undefined){toast(t("waitLoad"));return false}
+  if(isExample)materialize();
+  const w=weeks[m]?clone(weeks[m]):{days:{}};
+  dates.forEach(d=>{const cur=((w.days[d])||[]).map(x=>Object.assign({},x));w.days[d]=fn(cur,d)});
+  weeks[m]=w;saveWeek(m);render();return true;
+}
+const mutateDay=(d,fn)=>mutateDays([d],fn);
+function paint(staff,a,b,zone){mutateDay(selDate,l=>paintList(l,staff,a,b,zone))}
+function updateCfg(fn){if(!canWrite)return;if(isExample)materialize();fn(cfg);saveCfg();render()}
+
+/* ---------- coverage ---------- */
+function coverage(d){
+  const n=slots(),bl=dayBlocks(d),counts={},gaps=[];
+  cfg.zones.forEach(z=>{const c=new Array(n).fill(0);
+    bl.forEach(b=>{if(b.z!==z.id)return;for(let i=0;i<n;i++){const s=cfg.open+i*cfg.step;if(b.a<s+cfg.step&&b.b>s)c[i]++}});
+    counts[z.id]=c;
+    if(z.min){let st=-1;for(let i=0;i<=n;i++){const g=i<n&&c[i]<z.min;if(g&&st<0)st=i;if(!g&&st>=0){gaps.push({z,a:cfg.open+st*cfg.step,b:cfg.open+i*cfg.step,have:Math.min(...c.slice(st,i)),need:z.min});st=-1}}}
+  });
+  return {counts,gaps};
+}
+
+/* ---------- rendering ---------- */
+const app=document.getElementById("app");
+function setStatus(){
+  const el=document.getElementById("status");let cls="",txt="";
+  const saving=Object.keys(pend).length||Object.keys(busy).some(k=>busy[k]);
+  if(mode==="init"){txt=t("stLoading");cls="busy"}
+  else if(saving){txt=t("stSaving");cls="busy"}
+  else if(saveErr){txt=t("stError");cls="err"}
+  else if(offline){txt=cfg?t("stOfflineCache"):t("stOffline");cls="err"}
+  else if(mode==="local"){txt=t("stLocal")}
+  else if(!canWrite){txt=t("stView");cls="ok"}
+  else{txt=t("stSynced");cls="ok"}
+  el.className="status "+cls;el.textContent=txt;
+}
+function softRender(){if(drag){needsRender=true;return}render()}
+function render(){
+  document.documentElement.lang=lang;
+  document.getElementById("langBtn").textContent=lang==="es"?"EN":"ES";
+  document.getElementById("langBtn").setAttribute("aria-label",lang==="es"?"Switch to English":"Cambiar a español");
+  document.getElementById("kicker").textContent=t("kicker");
+  const mb=document.getElementById("mgrBtn");mb.hidden=mode!=="remote";mb.textContent=canWrite?t("managerOn"):t("manager");mb.classList.toggle("on",canWrite);
+  setStatus();
+  if(!cfg){app.innerHTML=`<div class="loading">${esc(offline?t("offline"):t("stLoading"))}</div>`;renderTabs();return}
+  document.getElementById("storeTitle").textContent=cfg.storeName||t("store");
+  if(!view||(view==="plan"&&!canWrite))view=canWrite?"plan":"me";
+  renderTabs();
+  ensureWeeks();
+  if(view==="plan")renderPlan();else if(view==="board")renderBoard();else renderMe();
+  if(modal&&modal.refresh)modal.refresh();
+}
+function renderTabs(){
+  const tabs=[["plan",t("tabPlan")],["board",t("tabBoard")],["me",t("tabMe")]].filter(x=>x[0]!=="plan"||canWrite);
+  document.getElementById("tabs").innerHTML=tabs.map(x=>`<a href="#${x[0]}" ${view===x[0]?'aria-current="page"':""}>${esc(x[1])}</a>`).join("");
+}
+function dateBar(){
+  const m=mondayOf(selDate),td=todayISO();let w="";
+  for(let i=0;i<7;i++){const d=addDays(m,i);const n=weekReady(m)?new Set(dayBlocks(d).map(b=>b.s)).size:null;
+    w+=`<button type="button" data-act="day" data-d="${d}" class="${d===selDate?"sel":""} ${d===td?"today":""}" aria-pressed="${d===selDate}"><small>${esc(dfmt(d,{weekday:"short"}))}</small><b>${dfmt(d,{day:"numeric"})}</b><i>${n==null?"&nbsp;":esc(t("working",{n}))}</i></button>`}
+  return `<div class="datebar"><button class="btn icon" type="button" data-act="prev" aria-label="${esc(t("prevDay"))}">‹</button><button class="btn" type="button" data-act="today">${esc(t("today"))}</button><button class="btn icon" type="button" data-act="next" aria-label="${esc(t("nextDay"))}">›</button><h2>${esc(longDate(selDate))}</h2><div class="week">${w}</div></div>`;
+}
+function axisHTML(){
+  let h="";const first=Math.ceil(cfg.open/60)*60;
+  for(let m=first;m<=cfg.close;m+=60){const cls=m===cfg.open?"first":m===cfg.close?"last":"";h+=`<em class="${cls}" style="left:${pct(m)}%">${fmt(m)}</em>`}
+  return h;
+}
+function blockHTML(b,label,sub,top){
+  const z=zoneById(b.z);const l=pct(b.a),w=pct(b.b)-l;
+  return `<div class="blk" tabindex="0" data-id="${esc(b.id)}" style="left:${l}%;width:${w}%;--c:${z.color};--ct:${txtOn(z.color)};${top!=null?"top:"+top+"px":""}" title="${esc(label)} · ${fmt(b.a)}–${fmt(b.b)}"><b>${esc(label)}</b><span>${esc(sub||fmt(b.a)+"–"+fmt(b.b))}</span></div>`;
+}
+
+function renderPlan(){
+  const m=mondayOf(selDate),n=slots(),hs=60/cfg.step;
+  if(!tool||(tool!=="erase"&&!zoneById(tool)))tool=cfg.zones[0]?cfg.zones[0].id:"erase";
+  let h=dateBar();
+  if(isExample)h+=`<div class="banner"><p>${esc(t("exampleBanner"))}</p><button class="btn" type="button" data-act="blank">${esc(t("startBlank"))}</button></div>`;
+  h+=`<div class="panel palette" role="toolbar" aria-label="${esc(t("paintWith"))}"><span class="lbl">${esc(t("paintWith"))}</span>`;
+  cfg.zones.forEach(z=>{h+=`<button type="button" class="chip ${tool===z.id?"on":""}" data-act="tool" data-id="${esc(z.id)}" aria-pressed="${tool===z.id}" style="--c:${z.color};--ct:${txtOn(z.color)}"><i></i>${esc(z.name)}</button>`});
+  h+=`<button type="button" class="chip erase ${tool==="erase"?"on":""}" data-act="tool" data-id="erase" aria-pressed="${tool==="erase"}"><i></i>${esc(t("eraser"))}</button><span class="sp"></span><button class="btn" type="button" data-act="setup">${esc(t("editSetup"))}</button></div>`;
+  h+=`<p class="hint">${esc(t("hint"))}</p>`;
+  if(!weekReady(m)){app.innerHTML=h+`<div class="loading">${esc(t("loadingWeek"))}</div>`;return}
+  const bl=dayBlocks(selDate),cov=coverage(selDate);
+  if(cov.gaps.length)h+=`<div class="check bad"><b>${esc(cov.gaps.length===1?t("gaps1"):t("gapsN",{n:cov.gaps.length}))}</b>${cov.gaps.map(g=>`<span>${esc(g.z.name)} ${fmt(g.a)}–${fmt(g.b)} · ${g.have}/${g.need}</span>`).join("")}</div>`;
+  else if(cfg.zones.some(z=>z.min))h+=`<div class="check ok"><b>✓ ${esc(t("allCovered"))}</b></div>`;
+  if(!cfg.staff.length){h+=`<div class="panel empty">${esc(t("noStaff"))}</div>`}
+  else{
+    h+=`<div class="gridwrap"><div class="grid" style="--n:${n};--hs:${hs}"><div class="cell name head">${esc(t("team"))}</div><div class="cell axis">${axisHTML()}</div>`;
+    cfg.staff.forEach(s=>{const bs=bl.filter(b=>b.s===s.id);const hrs=bs.reduce((a,b)=>a+(Math.min(b.b,cfg.close)-Math.max(b.a,cfg.open)),0)/60;
+      h+=`<div class="cell name"><span>${esc(s.name)}</span><small>${hrs?esc(t("hours",{h:fmtH(hrs)})):"&nbsp;"}</small></div><div class="cell track" data-staff="${esc(s.id)}">${bs.map(b=>blockHTML(b,zoneById(b.z).name)).join("")}</div>`});
+    h+=`<div class="cell name head sub">${esc(t("coverage"))}</div><div class="cell axis thin"></div>`;
+    cfg.zones.forEach(z=>{const c=cov.counts[z.id];
+      h+=`<div class="cell name cov"><i style="background:${z.color}"></i><span>${esc(z.name)}</span>${z.min?`<small>${esc(t("min",{n:z.min}))}</small>`:""}</div><div class="cell covtrack">${c.map((v,i)=>`<span class="${z.min&&v<z.min?"gap":""}" style="--c:${z.color};--a:${Math.min(.85,v*.32)}" title="${fmt(cfg.open+i*cfg.step)} · ${v}">${z.min&&v<z.min?"":(v||"")}</span>`).join("")}</div>`});
+    h+=`</div></div>`;
+  }
+  h+=`<div class="dayacts"><button class="btn" type="button" data-act="copyPrev">${esc(t("copyPrev"))}</button><button class="btn" type="button" data-act="copyLast">${esc(t("copyLastWeek"))}</button>${(parseISO(selDate).getDay()!==0)?`<button class="btn" type="button" data-act="repeat">${esc(t("repeatWeek"))}</button>`:""}<button class="btn danger" type="button" data-act="clearDay">${esc(t("clearDay"))}</button></div>`;
+  app.innerHTML=h;bindPlan();
+}
+function slotAt(tr,x){const r=tr.getBoundingClientRect();return clamp(Math.floor((x-r.left)/r.width*slots()),0,slots()-1)}
+function showGhost(){
+  const d=drag;if(!d.ghost){d.ghost=document.createElement("div");d.tr.appendChild(d.ghost)}
+  const lo=Math.min(d.start,d.cur),hi=Math.max(d.start,d.cur),n=slots();
+  d.ghost.className="ghost"+(tool==="erase"?" erase":"");
+  const z=zoneById(tool);if(z)d.ghost.style.setProperty("--c",z.color);
+  d.ghost.style.left=(lo/n*100)+"%";d.ghost.style.width=((hi-lo+1)/n*100)+"%";
+}
+function bindPlan(){
+  app.querySelectorAll(".track[data-staff]").forEach(tr=>{
+    tr.addEventListener("pointerdown",e=>{
+      if(!canWrite||e.button>0)return;const blk=e.target.closest(".blk");
+      e.preventDefault();const idx=slotAt(tr,e.clientX);
+      drag={tr,staff:tr.dataset.staff,start:idx,cur:idx,blockId:blk?blk.dataset.id:null,moved:false,ghost:null};
+      try{tr.setPointerCapture(e.pointerId)}catch(_){}
+      if(!blk)showGhost();
+    });
+    tr.addEventListener("pointermove",e=>{if(!drag||drag.tr!==tr)return;const idx=slotAt(tr,e.clientX);if(idx!==drag.cur){drag.cur=idx;drag.moved=true;showGhost()}});
+    tr.addEventListener("pointerup",()=>{
+      if(!drag||drag.tr!==tr)return;const d=drag;drag=null;if(d.ghost)d.ghost.remove();
+      if(!d.moved&&d.blockId){needsRender=false;openBlock(d.blockId);return}
+      const lo=Math.min(d.start,d.cur),hi=Math.max(d.start,d.cur);
+      needsRender=false;paint(d.staff,cfg.open+lo*cfg.step,cfg.open+(hi+1)*cfg.step,tool==="erase"?null:tool);
+    });
+    tr.addEventListener("pointercancel",()=>{if(drag&&drag.tr===tr){if(drag.ghost)drag.ghost.remove();drag=null;if(needsRender){needsRender=false;render()}}});
+  });
+}
+
+function notes(){
+  let h="";
+  if(isExample&&!canWrite)h+=`<div class="tip"><span>${esc(t("exampleViewer"))}</span></div>`;
+  const ios=/iphone|ipad|ipod/i.test(navigator.userAgent),standalone=navigator.standalone||matchMedia("(display-mode: standalone)").matches;
+  if(mode==="remote"&&!standalone&&!LS.get("zoning.tipDone")){
+    if(installEvt)h+=`<div class="tip"><span>${esc(t("installApp"))}</span><span><button class="btn small primary" type="button" data-act="install">${esc(t("installApp"))}</button> <button class="btn small" type="button" data-act="tipDone">${esc(t("dismiss"))}</button></span></div>`;
+    else if(ios)h+=`<div class="tip"><span>${esc(t("iosTip"))}</span><button class="btn small" type="button" data-act="tipDone">${esc(t("dismiss"))}</button></div>`;
+  }
+  return h;
+}
+function renderBoard(){
+  const d=selDate,isToday=d===todayISO(),m=mondayOf(d);
+  if(boardDate!==d||boardTime==null){boardDate=d;boardTime=isToday?clamp(nowMin(),cfg.open,cfg.close-1):cfg.open+60}
+  boardTime=clamp(boardTime,cfg.open,cfg.close-1);
+  let h=notes()+dateBar();
+  h+=`<div class="panel boardbar"><span class="lbl">${esc(t("showing"))}</span><span class="clock" id="clock">${fmt(boardTime)}</span><input type="range" id="timeRange" min="${cfg.open}" max="${cfg.close-1}" step="15" value="${boardTime}" aria-label="${esc(t("showing"))}">${isToday?`<button class="btn" type="button" data-act="nowT">${esc(t("now"))}</button>`:""}<button class="btn primary" type="button" data-act="copyDay">${esc(t("copyDay"))}</button></div>`;
+  if(!weekReady(m)){app.innerHTML=h+`<div class="loading">${esc(t("loadingWeek"))}</div>`;bindBoard();return}
+  h+=`<div class="cards" id="cards">${cardsHTML(d)}</div>`;
+  const bl=dayBlocks(d),n=slots();
+  h+=`<div class="sectionh"><h3>${esc(t("byZone"))}</h3></div><div class="gridwrap tl"><div class="grid" style="--n:${n};--hs:${60/cfg.step}"><div class="cell name head">${esc(t("zone"))}</div><div class="cell axis">${axisHTML()}</div>`;
+  cfg.zones.forEach(z=>{
+    const zb=bl.filter(b=>b.z===z.id),ends=[],lanes=[];
+    zb.forEach(b=>{let L=ends.findIndex(e=>e<=b.a);if(L<0){L=ends.length;ends.push(0)}ends[L]=b.b;lanes.push(L)});
+    const ht=Math.max(1,ends.length)*30+10;
+    h+=`<div class="cell name cov" style="min-height:${ht}px"><i style="background:${z.color}"></i><span>${esc(z.name)}</span></div><div class="cell track" style="min-height:${ht}px">${zb.map((b,i)=>blockHTML(b,staffById(b.s).name,fmt(b.a)+"–"+fmt(b.b),5+lanes[i]*30)).join("")}<div class="marker" style="left:${pct(boardTime)}%"></div></div>`;
+  });
+  h+=`</div></div>`;
+  app.innerHTML=h;bindBoard();
+}
+function cardsHTML(d){
+  const tm=boardTime,bl=dayBlocks(d);
+  return cfg.zones.map(z=>{
+    const here=bl.filter(b=>b.z===z.id&&b.a<=tm&&b.b>tm);
+    const short=z.min&&here.length<z.min;
+    const pill=z.min?`<span class="pill ${short?"bad":"ok"}">${here.length}/${z.min}</span>`:`<span class="pill">${here.length}</span>`;
+    const ev=[];bl.forEach(b=>{if(b.z!==z.id)return;if(b.a>tm&&b.a<=tm+60)ev.push([b.a,t("arrives",{name:staffById(b.s).name})]);if(b.b>tm&&b.b<=tm+60&&b.b<cfg.close)ev.push([b.b,t("leaves",{name:staffById(b.s).name})])});
+    ev.sort((a,b)=>a[0]-b[0]);
+    return `<article class="zcard ${short?"short":""}" style="--c:${z.color};--ct:${txtOn(z.color)}"><header><h3>${esc(z.name)}</h3>${pill}</header><ul>${here.length?here.map(b=>`<li>${esc(staffById(b.s).name)}<small>${esc(t("until",{t:fmt(b.b)}))}</small></li>`).join(""):`<li class="none">${esc(t("nobody"))}</li>`}</ul>${ev.length?`<div class="next">${ev.slice(0,3).map(e=>`<div><b>${fmt(e[0])}</b> ${esc(e[1])}</div>`).join("")}</div>`:""}</article>`;
+  }).join("");
+}
+function bindBoard(){
+  const r=document.getElementById("timeRange");if(!r)return;
+  r.addEventListener("input",()=>{boardTime=Number(r.value);document.getElementById("clock").textContent=fmt(boardTime);
+    const c=document.getElementById("cards");if(c)c.innerHTML=cardsHTML(selDate);
+    app.querySelectorAll(".marker").forEach(mk=>mk.style.left=pct(boardTime)+"%")});
+}
+
+function myBlocks(d){return dayBlocks(d).filter(b=>b.s===meId)}
+function renderMe(){
+  const me=meId&&staffById(meId);
+  if(!me){
+    app.innerHTML=notes()+`<div class="panel picker"><h2>${esc(t("whoAreYou"))}</h2><p>${esc(t("pickName"))}</p><div class="names">${cfg.staff.map(s=>`<button type="button" data-act="pickMe" data-id="${esc(s.id)}">${esc(s.name)}</button>`).join("")||`<span class="off">${esc(t("noStaff"))}</span>`}</div></div>`;return;
+  }
+  const td=todayISO(),tm=mondayOf(td);let h=notes()+`<div class="hello"><h2>${esc(t("hi",{name:me.name}))}</h2><button class="btn small" type="button" data-act="notMe">${esc(t("notYou"))}</button></div>`;
+  if(weekReady(tm)){
+    const bs=myBlocks(td),now=nowMin();const cur=bs.find(b=>b.a<=now&&b.b>now);const nxt=bs.find(b=>b.a>now);const past=bs.some(b=>b.b<=now);
+    if(cur){const z=zoneById(cur.z);const after=bs.find(b=>b.a>=cur.b);
+      h+=`<section class="nowcard" style="--c:${z.color};--ct:${txtOn(z.color)}"><small>${esc(t("nowLabel"))}</small><strong>${esc(z.name)}</strong><span>${esc(t("untilT",{t:fmt(cur.b)}))}</span>${after?`<p>${esc(t("nextUp",{zone:zoneById(after.z).name,t:fmt(after.a)}))}</p>`:""}</section>`}
+    else if(nxt){const z=zoneById(nxt.z);
+      h+=`<section class="nowcard"><small>${esc(t("nowLabel"))}</small><strong>${esc(past?t("onBreak"):t("startsAt",{t:fmt(nxt.a)}))}</strong><p>${esc(past?t("nextUp",{zone:z.name,t:fmt(nxt.a)}):t("inZone",{zone:z.name}))}</p></section>`}
+    else h+=`<section class="nowcard"><small>${esc(t("nowLabel"))}</small><strong>${esc(past?t("dayDone"):t("notToday"))}</strong></section>`;
+  }
+  const m=mondayOf(selDate);
+  h+=`<div class="weeknav"><h3>${esc(t("yourWeek",{d:dfmt(m,{day:"numeric",month:"long"})}))}</h3><button class="btn icon" type="button" data-act="prevW" aria-label="${esc(t("prevWeek"))}">‹</button><button class="btn" type="button" data-act="thisW">${esc(t("thisWeek"))}</button><button class="btn icon" type="button" data-act="nextW" aria-label="${esc(t("nextWeek"))}">›</button><button class="btn primary" type="button" data-act="copyWeek">${esc(t("copyWeek"))}</button></div>`;
+  if(!weekReady(m)){app.innerHTML=h+`<div class="loading">${esc(t("loadingWeek"))}</div>`;return}
+  h+=`<div class="days">`;
+  for(let i=0;i<7;i++){const d=addDays(m,i),bs=myBlocks(d);
+    h+=`<div class="panel day ${d===td?"today":""}"><div class="dn"><small>${esc(dfmt(d,{weekday:"short"}))}</small><b>${dfmt(d,{day:"numeric"})}</b></div><div>`;
+    if(bs.length){h+=`<div class="bar">${bs.map(b=>`<i style="left:${pct(b.a)}%;width:${pct(b.b)-pct(b.a)}%;--c:${zoneById(b.z).color}"></i>`).join("")}</div><div class="slots">${bs.map(b=>`<span class="slot" style="--c:${zoneById(b.z).color}"><em>${fmt(b.a)}–${fmt(b.b)}</em>${esc(zoneById(b.z).name)}</span>`).join("")}</div>`}
+    else h+=`<span class="off">${esc(t("dayOff"))}</span>`;
+    h+=`</div></div>`}
+  h+=`</div>`;app.innerHTML=h;
+}
+
+/* ---------- text exports ---------- */
+function dayText(d){
+  const bl=dayBlocks(d);let s=`*${cfg.storeName||t("store")} · ${longDate(d)}*\n`;
+  cfg.staff.forEach(p=>{const bs=bl.filter(b=>b.s===p.id);if(bs.length)s+=`\n${p.name}: `+bs.map(b=>`${fmt(b.a)}–${fmt(b.b)} ${zoneById(b.z).name}`).join(" · ")});
+  return s;
+}
+function weekText(){
+  const me=staffById(meId),m=mondayOf(selDate);let s=`*${me.name} · ${t("weekOf",{d:dfmt(m,{day:"numeric",month:"long"})})}*\n`;
+  for(let i=0;i<7;i++){const d=addDays(m,i),bs=myBlocks(d);s+=`\n${shortDate(d)}: `+(bs.length?bs.map(b=>`${fmt(b.a)}–${fmt(b.b)} ${zoneById(b.z).name}`).join(" · "):t("dayOff"))}
+  return s;
+}
+async function copyText(s){
+  try{await navigator.clipboard.writeText(s);toast(t("copied"))}
+  catch(e){openModal(()=>`<h3>${esc(t("copyFail"))}</h3><textarea id="copyArea" readonly>${esc(s)}</textarea><div class="acts"><button class="btn primary" type="button" data-act="closeModal">${esc(t("done"))}</button></div>`);const a=document.getElementById("copyArea");if(a){a.focus();a.select()}}
+}
+
+/* ---------- modals ---------- */
+const modalRoot=document.getElementById("modalRoot");
+function openModal(build,onRefresh){
+  modal={build,refresh:onRefresh||null};drawModal();
+}
+function drawModal(){
+  if(!modal){modalRoot.innerHTML="";return}
+  const ae=document.activeElement,active=ae&&modalRoot.contains(ae)&&ae.id;
+  const typing=active&&ae.tagName==="INPUT"?{v:ae.value,s:ae.selectionStart,e:ae.selectionEnd}:null;
+  const scroll=modalRoot.querySelector(".modal");const st=scroll?scroll.scrollTop:0;
+  modalRoot.innerHTML=`<div class="scrim" data-act="scrim"><div class="modal" role="dialog" aria-modal="true">${modal.build()}</div></div>`;
+  const nm=modalRoot.querySelector(".modal");if(nm)nm.scrollTop=st;
+  const el=active&&document.getElementById(active);
+  if(el){el.focus();if(typing){el.value=typing.v;try{el.setSelectionRange(typing.s,typing.e)}catch(_){}}}
+  else{const f=modalRoot.querySelector("button,input,select");if(f)f.focus()}
+}
+function closeModal(){modal=null;drawModal()}
+function confirmBox(msg,okLabel,onOk){
+  openModal(()=>`<h3>${esc(msg)}</h3><div class="acts"><button class="btn" type="button" data-act="closeModal">${esc(t("cancel"))}</button><button class="btn primary" type="button" id="cfOk">${esc(okLabel)}</button></div>`);
+  document.getElementById("cfOk").onclick=()=>{closeModal();onOk()};
+}
+function timeOptions(sel,from,to){let o="";for(let m=from;m<=to;m+=cfg.step)o+=`<option value="${m}" ${m===sel?"selected":""}>${fmt(m)}</option>`;return o}
+function openBlock(id){
+  const find=()=>dayBlocks(selDate).find(b=>b.id===id);
+  if(!find())return;
+  const build=()=>{const b=find();if(!b)return "";const s=staffById(b.s);
+    return `<h3>${esc(s.name)} · ${esc(shortDate(selDate))}</h3><h4>${esc(t("zone"))}</h4><div class="row">${cfg.zones.map(z=>`<button type="button" class="chip ${b.z===z.id?"on":""}" data-act="blkZone" data-id="${esc(z.id)}" style="--c:${z.color};--ct:${txtOn(z.color)}"><i></i>${esc(z.name)}</button>`).join("")}</div>
+    <div class="row" style="margin-top:14px"><label class="field" for="blkA">${esc(t("from"))}<select id="blkA">${timeOptions(b.a,cfg.open,cfg.close-cfg.step)}</select></label><label class="field" for="blkB">${esc(t("to"))}<select id="blkB">${timeOptions(b.b,cfg.open+cfg.step,cfg.close)}</select></label></div>
+    <div class="acts"><button class="btn danger" type="button" data-act="blkDel">${esc(t("removeBlock"))}</button><span class="sp"></span><button class="btn primary" type="button" data-act="closeModal">${esc(t("done"))}</button></div>`};
+  const apply=(z,a,b)=>{const cur=find();if(!cur)return;if(b<=a)b=Math.min(cfg.close,a+cfg.step);
+    mutateDay(selDate,l=>paintList(l.filter(x=>x.id!==id),cur.s,a,b,z,id));if(!find())closeModal()};
+  openModal(build,()=>{if(!find())closeModal();else drawModal()});
+  modal.blk={id,find,apply};
+}
+function openSetup(){
+  const build=()=>`<h3>${esc(t("editSetup"))}</h3>
+    <h4>${esc(t("store"))}</h4><div class="row"><label class="field" for="stName" style="flex:1;min-width:180px">${esc(t("storeName"))}<input type="text" id="stName" maxlength="60" value="${esc(cfg.storeName)}"></label>
+    <label class="field" for="stOpen">${esc(t("opens"))}<select id="stOpen">${timeOptions(cfg.open,0,1410)}</select></label><label class="field" for="stClose">${esc(t("closes"))}<select id="stClose">${timeOptions(cfg.close,30,1440)}</select></label></div>
+    <h4>${esc(t("zones"))} · ${esc(t("minStaff"))}</h4><div class="lst">${cfg.zones.map(z=>`<div class="it"><button type="button" class="sw" style="--c:${z.color}" data-act="zColor" data-id="${esc(z.id)}" aria-label="${esc(t("colorBtn"))}" title="${esc(t("colorBtn"))}"></button><input type="text" id="zn_${esc(z.id)}" data-zname="${esc(z.id)}" maxlength="40" value="${esc(z.name)}" aria-label="${esc(t("zone"))}"><input type="number" id="zm_${esc(z.id)}" data-zmin="${esc(z.id)}" min="0" max="9" value="${z.min}" aria-label="${esc(t("minStaff"))}"><button class="btn small danger" type="button" data-act="zDel" data-id="${esc(z.id)}">${esc(t("remove"))}</button></div>`).join("")}</div>
+    <div class="row" style="margin-top:8px"><button class="btn small" type="button" data-act="zAdd">+ ${esc(t("addZone"))}</button></div>
+    <h4>${esc(t("people"))}</h4><div class="lst">${cfg.staff.map(s=>`<div class="it"><input type="text" id="sn_${esc(s.id)}" data-sname="${esc(s.id)}" maxlength="40" value="${esc(s.name)}" aria-label="${esc(t("people"))}"><button class="btn small danger" type="button" data-act="sDel" data-id="${esc(s.id)}">${esc(t("remove"))}</button></div>`).join("")}</div>
+    <div class="row" style="margin-top:8px"><button class="btn small" type="button" data-act="sAdd">+ ${esc(t("addPerson"))}</button></div>
+    <div class="acts"><button class="btn primary" type="button" data-act="closeModal">${esc(t("done"))}</button></div>`;
+  openModal(build,drawModal);
+}
+
+/* ---------- events ---------- */
+function toast(msg){const el=document.createElement("div");el.className="toast";el.setAttribute("role","status");el.textContent=msg;document.body.appendChild(el);setTimeout(()=>el.remove(),2200)}
+function go(d){selDate=d;render()}
+document.addEventListener("click",e=>{
+  const a=e.target.closest("[data-act]");if(!a)return;const act=a.dataset.act,id=a.dataset.id;
+  if(act==="scrim"){if(e.target===a)closeModal();return}
+  switch(act){
+    case "prev":go(addDays(selDate,-1));break;
+    case "next":go(addDays(selDate,1));break;
+    case "today":case "thisW":go(todayISO());break;
+    case "prevW":go(addDays(selDate,-7));break;
+    case "nextW":go(addDays(selDate,7));break;
+    case "day":go(a.dataset.d);break;
+    case "tool":tool=id;render();break;
+    case "setup":openSetup();break;
+    case "blank":updateCfg(c=>{c.staff=[]});Object.keys(weeks).forEach(m=>{if(weeks[m]){weeks[m]={days:{}};saveWeek(m)}});render();break;
+    case "closeModal":closeModal();break;
+    case "blkZone":if(modal&&modal.blk){const b=modal.blk.find();if(b)modal.blk.apply(id,b.a,b.b)}break;
+    case "blkDel":if(modal&&modal.blk){const bid=modal.blk.id;closeModal();mutateDay(selDate,l=>l.filter(x=>x.id!==bid))}break;
+    case "zColor":updateCfg(c=>{const z=c.zones.find(x=>x.id===id);if(z)z.color=PALETTE[(PALETTE.indexOf(z.color)+1)%PALETTE.length]});break;
+    case "zDel":updateCfg(c=>{c.zones=c.zones.filter(x=>x.id!==id)});break;
+    case "zAdd":updateCfg(c=>{const used=c.zones.map(z=>z.color);c.zones.push({id:"z"+uid(),name:t("newZone"),color:PALETTE.find(p=>!used.includes(p))||PALETTE[c.zones.length%PALETTE.length],min:0})});break;
+    case "sDel":updateCfg(c=>{c.staff=c.staff.filter(x=>x.id!==id)});break;
+    case "sAdd":updateCfg(c=>{c.staff.push({id:"s"+uid(),name:t("newPerson")})});break;
+    case "nowT":boardTime=clamp(nowMin(),cfg.open,cfg.close-1);render();break;
+    case "copyDay":copyText(dayText(selDate));break;
+    case "copyWeek":copyText(weekText());break;
+    case "pickMe":meId=id;LS.set("zoning.me",id);render();break;
+    case "notMe":meId=null;LS.set("zoning.me",null);render();break;
+    case "copyPrev":dayCopy(addDays(selDate,-1));break;
+    case "mgr":openManager();break;
+    case "pinGo":tryPin();break;
+    case "mgrExit":pin="";LS.set("zoning.pin","");canWrite=false;closeModal();view="me";location.hash="me";render();break;
+    case "tipDone":LS.set("zoning.tipDone",true);render();break;
+    case "install":if(installEvt){installEvt.prompt();installEvt=null;LS.set("zoning.tipDone",true);render()}break;
+    case "copyLast":dayCopy(addDays(selDate,-7));break;
+    case "repeat":repeatRest();break;
+    case "clearDay":if(!dayBlocks(selDate).length)break;confirmBox(t("confirmClear",{day:longDate(selDate)}),t("clear"),()=>mutateDay(selDate,()=>[]));break;
+  }
+});
+document.addEventListener("change",e=>{
+  const el=e.target;
+  if(el.id==="blkA"||el.id==="blkB"){if(!modal||!modal.blk)return;const b=modal.blk.find();if(!b)return;
+    const A=Number(document.getElementById("blkA").value),B=Number(document.getElementById("blkB").value);modal.blk.apply(b.z,A,B);return}
+  if(el.id==="stName")updateCfg(c=>{c.storeName=el.value.trim().slice(0,60)});
+  else if(el.id==="stOpen"||el.id==="stClose"){const o=Number(document.getElementById("stOpen").value),c2=Number(document.getElementById("stClose").value);if(c2>o)updateCfg(c=>{c.open=o;c.close=c2});else drawModal()}
+  else if(el.dataset.zname)updateCfg(c=>{const z=c.zones.find(x=>x.id===el.dataset.zname);if(z)z.name=el.value.trim().slice(0,40)||z.name});
+  else if(el.dataset.zmin)updateCfg(c=>{const z=c.zones.find(x=>x.id===el.dataset.zmin);if(z)z.min=clamp(parseInt(el.value)||0,0,9)});
+  else if(el.dataset.sname)updateCfg(c=>{const s=c.staff.find(x=>x.id===el.dataset.sname);if(s)s.name=el.value.trim().slice(0,40)||s.name});
+});
+document.addEventListener("keydown",e=>{
+  if(e.key==="Escape"&&modal){closeModal();return}
+  if((e.key==="Enter"||e.key===" ")&&e.target.classList&&e.target.classList.contains("blk")&&view==="plan"&&canWrite){e.preventDefault();openBlock(e.target.dataset.id)}
+});
+function openManager(){
+  if(canWrite){openModal(()=>`<h3>${esc(t("pinTitle"))}</h3><p>${esc(t("managerMode"))}</p><div class="acts"><button class="btn danger" type="button" data-act="mgrExit">${esc(t("exitManager"))}</button><span class="sp"></span><button class="btn primary" type="button" data-act="closeModal">${esc(t("done"))}</button></div>`);return}
+  openModal(()=>`<h3>${esc(t("pinTitle"))}</h3><p>${esc(t("pinHelp"))}</p><form id="pinForm"><label class="field" for="pinIn">${esc(t("pinLabel"))}<input type="password" id="pinIn" inputmode="numeric" autocomplete="current-password" maxlength="40"></label><p class="err" id="pinErr" role="alert"></p><div class="acts"><button class="btn" type="button" data-act="closeModal">${esc(t("cancel"))}</button><button class="btn primary" type="submit">${esc(t("unlock"))}</button></div></form>`);
+  const f=document.getElementById("pinForm");f.addEventListener("submit",e=>{e.preventDefault();tryPin()});document.getElementById("pinIn").focus();
+}
+async function tryPin(){
+  const inp=document.getElementById("pinIn"),er=document.getElementById("pinErr");if(!inp)return;const p=inp.value.trim();if(!p)return;
+  try{const ok=await verifyPin(p);if(!ok){er.textContent=t("pinWrong");inp.select();return}
+    pin=p;LS.set("zoning.pin",p);canWrite=true;closeModal();view="plan";location.hash="plan";render();
+  }catch(e){er.textContent=t("pinNet")}
+}
+async function dayCopy(src){
+  await ensureWeekData(mondayOf(src));
+  const items=dayBlocks(src).map(b=>Object.assign({},b,{id:uid()}));
+  const run=()=>mutateDay(selDate,()=>items);
+  if(dayBlocks(selDate).length)confirmBox(t("confirmReplace",{day:longDate(selDate)}),t("replace"),run);else run();
+}
+function repeatRest(){
+  const m=mondayOf(selDate),src=dayBlocks(selDate),dates=[];
+  for(let d=addDays(selDate,1);mondayOf(d)===m;d=addDays(d,1))dates.push(d);
+  if(!dates.length)return;
+  const run=()=>mutateDays(dates,()=>src.map(b=>Object.assign({},b,{id:uid()})));
+  if(dates.some(d=>dayBlocks(d).length))confirmBox(t("confirmRest",{from:shortDate(dates[0]),to:shortDate(dates[dates.length-1])}),t("replace"),run);else run();
+}
+window.addEventListener("hashchange",()=>{const v=location.hash.slice(1);if(VIEWS.includes(v)){view=v;render()}});
+document.getElementById("langBtn").addEventListener("click",()=>{
+  lang=lang==="es"?"en":"es";LS.set("zoning.lang",lang);
+  if(isExample){const keep=cfg;cfg=exampleConfig();if(keep&&keep.open!=null){cfg.open=keep.open;cfg.close=keep.close}}
+  render();
+});
+setInterval(()=>{if(!drag&&!modal&&(view==="me"||(view==="board"&&selDate===todayISO()&&Math.abs(boardTime-nowMin())<2)))
+  {if(view==="board")boardTime=clamp(nowMin(),cfg.open,cfg.close-1);render()}},60000);
+
+/* ---------- start ---------- */
+function startLocal(){
+  mode="local";const c=LS.get(lsKey("plan/config"));
+  if(c){cfg=sanCfg(c);isExample=false}else{cfg=exampleConfig();isExample=true}
+  loaded=true;render();
+}
+async function start(){
+  if(!location.protocol.startsWith("http")){canWrite=true;startLocal();return}
+  mode="remote";
+  const c=LS.get(cacheKey("plan/config"));
+  if(c){if(c.d){cfg=sanCfg(c.d);isExample=false}else{cfg=exampleConfig();isExample=true}}
+  if(pin){canWrite=true}
+  render();
+  if(pin){verifyPin(pin).then(ok=>{if(!ok){pin="";LS.set("zoning.pin","");canWrite=false;render()}}).catch(()=>{})}
+  await refresh();
+  setInterval(()=>{if(document.visibilityState==="visible")refresh()},20000);
+  document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")refresh()});
+  window.addEventListener("online",refresh);
+}
+if("serviceWorker" in navigator&&location.protocol==="https:"){window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}))}
+window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();installEvt=e;if(view==="me")render()});
+start();
+</script>
+</body>
+</html>
