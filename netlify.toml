@@ -1,0 +1,15 @@
+# Static PWA in public/ plus one Netlify Function. There is no compile step,
+# so no build command is needed; Netlify installs @netlify/blobs with npm.
+[build]
+  publish = "public"
+  functions = "netlify/functions"
+
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Robots-Tag = "noindex"
