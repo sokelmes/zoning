@@ -8,7 +8,8 @@ Mobile-first web app (PWA) that shows which employee works in which zone of the 
 2. In Netlify, go to **Add new project → Import an existing project → GitHub** and pick the repository. The build settings come from `netlify.toml`, so leave the defaults.
 3. Go to **Project configuration → Environment variables → Add a variable**. Set the key to `MANAGER_PIN`, the value to the PIN you want (for example 6 digits), and mark it as secret.
 4. Go to **Deploys → Trigger deploy → Deploy project** so the PIN is picked up.
-5. Open the `*.netlify.app` link. Tap **Manager**, enter the PIN, and start planning.
+5. New Netlify teams make projects **Private** by default, which asks every visitor to log in to Netlify. Go to **Project configuration → General → Visitor access → Project visibility** and set it to **Public** so staff can open the link without an account.
+6. Open the `*.netlify.app` link. Tap **Manager**, enter the PIN, and start planning.
 
 Netlify CLI alternative: run `npm install`, then `npx netlify deploy --prod`, then set `MANAGER_PIN` the same way.
 
@@ -31,6 +32,6 @@ Data is stored in Netlify Blobs (store `zoning`): one document for zones, team a
 
 ## Notes
 
-- Anyone with the link can see names and schedules. The site is marked `noindex`, so search engines won't list it.
+- Once the project is Public, anyone with the link can see names and schedules. The site is marked `noindex`, so search engines won't list it.
 - To change the PIN, edit `MANAGER_PIN` and redeploy. Managers will be asked for the new one.
 - Until a manager saves anything, the app shows labelled example data.
